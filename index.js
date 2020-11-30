@@ -1,15 +1,24 @@
 const puppeteer = require("puppeteer");
 const chalk = require("chalk");
-const { getKeyWords } = require("./utils/index");
+const {
+  getKeyWords,
+  scrapeLinks,
+  scrapePressRelease,
+  parseHTMLtoMarkdown,
+  savePressRelease,
+  deletePreviousPressReleases,
+} = require("./utils/index");
+const { partial } = require("lodash");
 
 (async () => {
   // Delete press releases from previous run and create new one,
   // or create a press-release directory if it doesn't exist.
   const dir = "./press-releases";
+  deletePreviousPressReleases(dir);
 
   try {
     const keywords = await getKeyWords();
-    const URL = `https://www.prnewswire.com/search/news/?keyword=${keywords}`;
+    const URL = `https://www.prnewswire.com/search/news/?keyword=${keywords}&page=1&pagesize=100`;
     const browser = await puppeteer.launch();
     const page = await browser.newPage();
     await page.goto(URL);
@@ -18,9 +27,22 @@ const { getKeyWords } = require("./utils/index");
       (el) => el.textContent
     );
     const regex = / \d+ /;
-
     const totalNewsStories = parseInt(displayResults.match(regex)[0].trim());
-    const totalPages = totalNewsStories / 100;
+
+    const isOnePage = totalNewsStories <= 100;
+    if (isOnePage) {
+      const links = await scrapeLinks(page);
+      for (let i = 0; i < links.length; i++) {
+        const { headline, body } = await scrapePressRelease(
+          page,
+          links[i].link
+        );
+        const markdown = parseHTMLtoMarkdown(headline + "<br>" + body)
+        await savePressRelease(markdown, links[i].headline)
+      }
+    } else {
+      const totalPages = totalNewsStories / 100;
+    }
 
     await browser.close();
   } catch (err) {

@@ -2,6 +2,7 @@ const fs = require("fs");
 const chalk = require("chalk");
 const TurndownService = require("turndown");
 const inquirer = require("inquirer");
+const kebabCase = require("lodash").kebabCase;
 
 const getKeyWords = async () => {
   var questions = [
@@ -31,16 +32,55 @@ const deletePreviousPressReleases = (dir) => {
   }
 };
 
-
-const parseHTMLtoMarkdown = (text) => {
-  var turndownService = new TurndownService();
-  const markdown = turndownService.turndown(text);
-  return markdown;
+const scrapeLinks = async (page) => {
+  const prLinks = await page.evaluate(() => {
+    const links = Array.from(
+      document.querySelectorAll("a.news-release"),
+      (element) => {
+        const obj = { headline: element.textContent, link: element.href };
+        return obj;
+      }
+    );
+    return links;
+  });
+  return prLinks;
 };
 
+const scrapePressRelease = async (page, link) => {
+  await page.goto(link, { waitUntil: "load" });
+  let node = await page.$(".row > div > h1");
+  const headline = await page.evaluate((node) => node.innerHTML, node);
+  node = await page.$(".release-body.container");
+  const body = await page.evaluate((node) => node.innerHTML, node);
+  return { headline, body };
+};
+
+const parseHTMLtoMarkdown = (text) => {
+    var turndownService = new TurndownService();
+    const markdown = turndownService.turndown(text);
+    return markdown;
+  };
+  
+  const savePressRelease = async (markdown, headline) => {
+    await fs.writeFile(
+      `./press-releases/${kebabCase(headline)}.md`,
+      markdown,
+      function (err) {
+        if (err) throw err;
+        console.log(
+          chalk.bgGreen.underline(
+            `✅📰 Press release ${kebabCase(headline.slice(0, 50))}.md saved!`
+          )
+        );
+      }
+    );
+  };
 
 module.exports = {
   deletePreviousPressReleases,
   parseHTMLtoMarkdown,
   getKeyWords,
+  scrapeLinks,
+  scrapePressRelease,
+  savePressRelease
 };
