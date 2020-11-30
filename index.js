@@ -37,11 +37,33 @@ const { partial } = require("lodash");
           page,
           links[i].link
         );
-        const markdown = parseHTMLtoMarkdown(headline + "<br>" + body)
-        await savePressRelease(markdown, links[i].headline)
+        const markdown = parseHTMLtoMarkdown(headline + "<br>" + body);
+        await savePressRelease(markdown, links[i].headline);
       }
     } else {
       const totalPages = totalNewsStories / 100;
+      console.log(
+        chalk.bgGreen.white(totalPages + " pages of press releases...")
+      );
+      
+      let pageResults = [];
+      for (let i = 1; i <= totalPages; i++) {
+        pageResults.push(
+          `https://www.prnewswire.com/search/news/?keyword=${keywords}&page=${i}&pagesize=100`
+        );
+      }
+      for (let i = 0; i < pageResults.length; i++) {
+        await page.goto(pageResults[i], { waitUntil: "load" });
+        const links = await scrapeLinks(page);
+        for (let i = 0; i < links.length; i++) {
+          const { headline, body } = await scrapePressRelease(
+            page,
+            links[i].link
+          );
+          const markdown = parseHTMLtoMarkdown(headline + "<br>" + body);
+          await savePressRelease(markdown, links[i].headline);
+        }
+      }
     }
 
     await browser.close();
